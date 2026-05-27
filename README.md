@@ -136,22 +136,7 @@ Run :
 docker run --rm -v ${PWD}\reports:/app/reports osint-harvester example.com --limit 50 --metadata-limit 0 --out /app/reports/example-docker
 ```
 
-## Demo orale conseillee
 
-1. Lancer une collecte sur un domaine autorise.
-2. Ouvrir `report.html`.
-3. Montrer la synthese, le score et les constats priorises.
-4. Ouvrir `subdomains.csv` pour montrer la tracabilite des sources.
-5. Relancer une collecte, puis utiliser `--compare` pour montrer le suivi d'exposition dans le temps.
-6. Expliquer les limites : passif, public, non intrusif.
-
-## Formulation CV
-
-> Developpement d'un outil OSINT passif en Python inspire de theHarvester, agregant CT logs, DNS publics, Wayback, urlscan et metadonnees documentaires, avec scoring de risque, rapports HTML/Markdown/JSON/CSV, mode comparaison et tests unitaires.
-
-Version courte :
-
-> Outil OSINT passif Python : sous-domaines, DNS, emails, documents publics, metadonnees, scoring de risque et reporting automatise.
 
 ## Roadmap
 
