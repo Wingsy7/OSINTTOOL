@@ -85,6 +85,33 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(comparison["changes"]["subdomains"]["added"], ["admin.example.com"])
         self.assertEqual(comparison["changes"]["emails"]["added"], ["contact@example.com"])
 
+    def test_compare_reports_warns_on_target_mismatch(self):
+        old_report = {
+            "target": "example.com",
+            "generated_at": "2026-05-27T00:00:00+00:00",
+            "risk_assessment": {"score": 10, "level": "Low"},
+            "subdomains": [],
+            "emails": [],
+            "documents": [],
+            "dns_records": [],
+        }
+        new_report = {
+            "target": "example.org",
+            "generated_at": "2026-05-28T00:00:00+00:00",
+            "risk_assessment": {"score": 20, "level": "Low"},
+            "subdomains": [],
+            "emails": [],
+            "documents": [],
+            "dns_records": [],
+        }
+        comparison = harvester.compare_reports(old_report, new_report)
+        markdown = harvester.render_comparison_markdown(comparison)
+        html = harvester.render_comparison_html(comparison)
+        self.assertFalse(comparison["same_target"])
+        self.assertEqual(comparison["warnings"][0]["code"], "target_mismatch")
+        self.assertIn("Avertissements", markdown)
+        self.assertIn("target_mismatch", html)
+
 
 if __name__ == "__main__":
     unittest.main()

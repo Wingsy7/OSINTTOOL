@@ -124,6 +124,8 @@ Les tests couvrent :
 
 ## Docker
 
+L'image utilise `python:3.12-slim`.
+
 Build :
 
 ```powershell

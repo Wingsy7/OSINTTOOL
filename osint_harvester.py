@@ -1313,12 +1313,28 @@ def escape_md(value: str) -> str:
 
 def load_json_report(path: Path) -> dict[str, Any]:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8-sig"))
     except json.JSONDecodeError as exc:
         raise ValueError(f"Invalid JSON report {path}: {exc}") from exc
 
 
 def compare_reports(old_report: dict[str, Any], new_report: dict[str, Any]) -> dict[str, Any]:
+    old_target = old_report.get("target", "")
+    new_target = new_report.get("target", "")
+    same_target = old_target == new_target
+    warnings = []
+    if not same_target:
+        warnings.append(
+            {
+                "code": "target_mismatch",
+                "message": (
+                    "Les deux rapports ne concernent pas la meme cible: "
+                    f"{old_target or 'N/A'} vs {new_target or 'N/A'}. "
+                    "La comparaison reste generee, mais les ajouts/retraits ne doivent pas etre interpretes "
+                    "comme une evolution temporelle du meme perimetre."
+                ),
+            }
+        )
     sections = {
         "subdomains": (
             {item.get("value", "") for item in old_report.get("subdomains", [])},
@@ -1349,9 +1365,10 @@ def compare_reports(old_report: dict[str, Any], new_report: dict[str, Any]) -> d
     new_score = new_report.get("risk_assessment", {}).get("score", 0)
     return {
         "generated_at": now_utc(),
-        "old_target": old_report.get("target", ""),
-        "new_target": new_report.get("target", ""),
-        "same_target": old_report.get("target", "") == new_report.get("target", ""),
+        "old_target": old_target,
+        "new_target": new_target,
+        "same_target": same_target,
+        "warnings": warnings,
         "old_generated_at": old_report.get("generated_at", ""),
         "new_generated_at": new_report.get("generated_at", ""),
         "risk_delta": {
@@ -1403,11 +1420,20 @@ def render_comparison_markdown(comparison: dict[str, Any]) -> str:
         f"- Nouveau rapport: `{comparison['new_generated_at']}`",
         f"- Score: {delta['old_score']} -> {delta['new_score']} ({delta['delta']:+})",
         "",
-        "## Synthese",
-        "",
-        "| Section | Ajoutes | Retires |",
-        "| --- | ---: | ---: |",
     ]
+    if comparison.get("warnings"):
+        lines.extend(["## Avertissements", ""])
+        for warning in comparison["warnings"]:
+            lines.append(f"- **{warning.get('code', 'warning')}**: {warning.get('message', '')}")
+        lines.append("")
+    lines.extend(
+        [
+            "## Synthese",
+            "",
+            "| Section | Ajoutes | Retires |",
+            "| --- | ---: | ---: |",
+        ]
+    )
     for section, counts in comparison["summary"].items():
         lines.append(f"| {section} | {counts['added']} | {counts['removed']} |")
     lines.append("")
@@ -1428,6 +1454,14 @@ def render_comparison_markdown(comparison: dict[str, Any]) -> str:
 
 def render_comparison_html(comparison: dict[str, Any]) -> str:
     delta = comparison["risk_delta"]
+    warning_html = ""
+    if comparison.get("warnings"):
+        warning_items = "".join(
+            f"<li><strong>{html_escape(item.get('code', 'warning'))}</strong>: "
+            f"{html_escape(item.get('message', ''))}</li>"
+            for item in comparison["warnings"]
+        )
+        warning_html = f'<section class="warning"><h2>Avertissements</h2><ul>{warning_items}</ul></section>'
     summary_rows = [
         [section, counts["added"], counts["removed"]]
         for section, counts in comparison["summary"].items()
@@ -1452,6 +1486,7 @@ def render_comparison_html(comparison: dict[str, Any]) -> str:
     th {{ background: #eaf1f8; }}
     h2 {{ margin-top: 30px; }}
     code {{ background: #edf2f7; padding: 2px 5px; border-radius: 4px; }}
+    .warning {{ background: #fff7ed; border: 1px solid #fdba74; color: #7c2d12; padding: 12px 16px; margin-bottom: 20px; }}
   </style>
 </head>
 <body>
@@ -1461,6 +1496,7 @@ def render_comparison_html(comparison: dict[str, Any]) -> str:
     <p>Score: <code>{delta['old_score']}</code> vers <code>{delta['new_score']}</code> ({delta['delta']:+})</p>
   </header>
   <main>
+    {warning_html}
     <h2>Synthese</h2>
     {html_table(["Section", "Ajoutes", "Retires"], summary_rows)}
     {''.join(change_sections)}
@@ -1570,6 +1606,8 @@ def main(argv: list[str] | None = None) -> int:
             f"{comparison['risk_delta']['new_score']} "
             f"({comparison['risk_delta']['delta']:+})"
         )
+        for warning in comparison.get("warnings", []):
+            print(f"[!] {warning['message']}")
         return 0
 
     if not args.target:
